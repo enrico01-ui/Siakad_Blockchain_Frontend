@@ -1,7 +1,7 @@
 // src/services/api.js
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'http://139.59.240.82:3000/api' })
+const api = axios.create({ baseURL: 'https://seems-reserved-discounts-indicator.trycloudflare.com/api' })
 
 // Otomatis tambah token di setiap request
 api.interceptors.request.use(cfg => {
