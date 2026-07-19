@@ -144,6 +144,7 @@ export default function ManajemenUser() {
           ? `✓ User ${user.username} terverifikasi — hash cocok dengan blockchain.`
           : `✗ User ${user.username} TIDAK VALID — hash tidak cocok.`,
       })
+      setLoadingVerify(false)
     } catch (err) {
       setLoadingVerify(false)
       setMsg({ type: 'error', text: err.response?.data?.message || 'Gagal verifikasi user.' })
