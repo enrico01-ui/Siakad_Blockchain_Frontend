@@ -1,7 +1,7 @@
 // src/services/api.js
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'https://correspondence-their-conversations-rhythm.trycloudflare.com/api' })
+const api = axios.create({ baseURL: 'https://consider-schemes-pressure-east.trycloudflare.com/api' })
 
 // Otomatis tambah token di setiap request
 api.interceptors.request.use(cfg => {
