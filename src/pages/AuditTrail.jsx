@@ -1,5 +1,5 @@
 // src/pages/AuditTrail.jsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
@@ -13,129 +13,91 @@ export default function AuditTrail() {
   const { user } = useAuth()
   const [tab, setTab]           = useState('akademik')
   const [filterText, setFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('') // query yang benar-benar dikirim ke backend
 
   // ── Data per tab ──────────────────────────────────────────
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [akademik, setAkademik] = useState({ all: [], filtered: [], loading: true })
-  const [dokumen,  setDokumen]  = useState({ all: [], filtered: [], loading: true })
-  const [users,    setUsers]    = useState({ all: [], filtered: [], loading: true })
+  const [page, setPage] = useState({ akademik: 1, dokumen: 1, users: 1 })
+  const [totalPages, setTotalPages] = useState({ akademik: 1, dokumen: 1, users: 1 })
+  const [akademik, setAkademik] = useState({ rows: [], total: 0, confirmed: 0, pending: 0, loading: true })
+  const [dokumen,  setDokumen]  = useState({ rows: [], total: 0, confirmed: 0, pending: 0, loading: true })
+  const [users,    setUsers]    = useState({ rows: [], total: 0, aktif: 0, hashed: 0, loading: true })
 
   // ── Fetch akademik ────────────────────────────────────────
   useEffect(() => {
-  setAkademik(p => ({ ...p, loading: true }))
-
-  api.get(`/academic?page=${page}&limit=50&search=${filterText}`)
-    .then(({ data }) => {
-      const rows = data.records || []
-
-      setAkademik({
-        all: rows,
-        filtered: rows,
-        loading: false
+    setAkademik(p => ({ ...p, loading: true }))
+    api.get(`/academic?page=${page.akademik}&limit=50&search=${searchQuery}`)
+      .then(({ data }) => {
+        const rows = data.records || []
+        setAkademik({
+          rows,
+          total:     data.total ?? rows.length,
+          confirmed: rows.filter(r => r.status === 'confirmed').length,
+          pending:   rows.filter(r => r.status === 'pending' || r.status === 'pending_blockchain').length,
+          loading:   false,
+        })
+        setTotalPages(p => ({ ...p, akademik: data.totalPages || 1 }))
       })
-
-      setTotalPages(data.totalPages || 1)
-      console.log('Academic data loaded:', rows.length, 'records')
-      console.log('Total pages:', data.totalPages)
-    })
-    .catch(() => {
-      setAkademik(p => ({ ...p, loading: false }))
-    })
-
-}, [page, filterText])
+      .catch(() => setAkademik(p => ({ ...p, loading: false })))
+  }, [page.akademik, searchQuery])
 
   // ── Fetch dokumen ─────────────────────────────────────────
   useEffect(() => {
-    api.get('/documents?limit=2000')
+    setDokumen(p => ({ ...p, loading: true }))
+    api.get(`/documents?page=${page.dokumen}&limit=50&search=${searchQuery}`)
       .then(({ data }) => {
         const rows = data.documents || []
-        setDokumen({ all: rows, filtered: rows, loading: false })
+        setDokumen({
+          rows,
+          total:     data.total ?? rows.length,
+          confirmed: rows.filter(r => r.status === 'confirmed').length,
+          pending:   rows.filter(r => r.status === 'pending').length,
+          loading:   false,
+        })
+        setTotalPages(p => ({ ...p, dokumen: data.totalPages || 1 }))
       })
       .catch(() => setDokumen(p => ({ ...p, loading: false })))
-  }, [])
+  }, [page.dokumen, searchQuery])
 
   // ── Fetch users (admin only) ──────────────────────────────
   useEffect(() => {
     if (user?.role !== 'admin') {
-      setUsers({ all: [], filtered: [], loading: false })
+      setUsers({ rows: [], total: 0, aktif: 0, hashed: 0, loading: false })
       return
     }
-    api.get('/users')
+    setUsers(p => ({ ...p, loading: true }))
+    api.get(`/users?page=${page.users}&limit=50&search=${searchQuery}`)
       .then(({ data }) => {
         const rows = data.users || []
-        setUsers({ all: rows, filtered: rows, loading: false })
+        setUsers({
+          rows,
+          total:  data.total ?? rows.length,
+          aktif:  rows.filter(r => r.is_active).length,
+          hashed: rows.filter(r => r.data_hash).length,
+          loading: false,
+        })
+        setTotalPages(p => ({ ...p, users: data.totalPages || 1 }))
       })
       .catch(() => setUsers(p => ({ ...p, loading: false })))
-  }, [user])
+  }, [page.users, user, searchQuery])
 
   // ── Filter ────────────────────────────────────────────────
   const handleSearch = (e) => {
     e.preventDefault()
-    // academic -> backend search
-    setPage(1)
-
-    const q = filterText.trim().toLowerCase()
-    if (!q) {
-      setAkademik(p => ({ ...p, filtered: p.all }))
-      setDokumen(p  => ({ ...p, filtered: p.all }))
-      setUsers(p    => ({ ...p, filtered: p.all }))
-      return
-    }
-    setDokumen(p => ({ ...p, filtered: p.all.filter(r =>
-      r.student_id?.toLowerCase().includes(q) ||
-      r.student_name?.toLowerCase().includes(q) ||
-      r.document_type?.toLowerCase().includes(q) ||
-      r.tx_id?.toLowerCase().includes(q)
-    )}))
-    setUsers(p => ({ ...p, filtered: p.all.filter(r =>
-      r.username?.toLowerCase().includes(q) ||
-      r.full_name?.toLowerCase().includes(q) ||
-      r.email?.toLowerCase().includes(q)
-    )}))
-    setAkademik(p => ({ ...p, loading: true }))
-
-  api.get(`/academic?page=1&limit=50&search=${q}`)
-    .then(({ data }) => {
-      const rows = data.records || []
-
-      setAkademik({
-        all: rows,
-        filtered: rows,
-        loading: false
-      })
-
-      setTotalPages(data.totalPages || 1)
-    })
-    .catch(() => {
-      setAkademik(p => ({ ...p, loading: false }))
-    })
+    setPage({ akademik: 1, dokumen: 1, users: 1 })
+    setSearchQuery(filterText.trim())
   }
 
   const handleReset = () => {
     setFilter('')
-    setPage(1)
-    setDokumen(p  => ({ ...p, filtered: p.all }))
-    setUsers(p    => ({ ...p, filtered: p.all }))
+    setSearchQuery('')
+    setPage({ akademik: 1, dokumen: 1, users: 1 })
   }
 
   // ── Stats helper ──────────────────────────────────────────
   const stats = {
-    akademik: {
-      total:     akademik.filtered.length,
-      confirmed: akademik.filtered.filter(r => r.status === 'confirmed').length,
-      pending:   akademik.filtered.filter(r => r.status === 'pending' || r.status === 'pending_blockchain').length,
-    },
-    dokumen: {
-      total:     dokumen.filtered.length,
-      confirmed: dokumen.filtered.filter(r => r.status === 'confirmed').length,
-      pending:   dokumen.filtered.filter(r => r.status === 'pending').length,
-    },
-    users: {
-      total:  users.filtered.length,
-      aktif:  users.filtered.filter(r => r.is_active).length,
-      hashed: users.filtered.filter(r => r.data_hash).length,
-    },
+    akademik: { total: akademik.total, confirmed: akademik.confirmed, pending: akademik.pending },
+    dokumen:  { total: dokumen.total,  confirmed: dokumen.confirmed,  pending: dokumen.pending },
+    users:    { total: users.total,    aktif: users.aktif,            hashed: users.hashed },
   }
 
   const fmtDate = (d) => d
@@ -241,9 +203,9 @@ export default function AuditTrail() {
               <tbody>
                 {akademik.loading ? (
                   <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Memuat data...</td></tr>
-                ) : akademik.filtered.length === 0 ? (
+                ) : akademik.rows.length === 0 ? (
                   <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Tidak ada data ditemukan</td></tr>
-                ) : akademik.filtered.map((r, i) => (
+                ) : akademik.rows.map((r, i) => (
                   <tr key={i}>
                     <td style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(r.created_at)}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--navy)' }}>{r.student_id}</td>
@@ -267,30 +229,14 @@ export default function AuditTrail() {
               </tbody>
             </table>
           </div>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 10,
-            padding: 20
-          }}>
-            <button
-              className="btn btn-outline"
-              disabled={page <= 1}
-              onClick={() => setPage(p => p - 1)}
-            >
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: 20 }}>
+            <button className="btn btn-outline" disabled={page.akademik <= 1}
+              onClick={() => setPage(p => ({ ...p, akademik: p.akademik - 1 }))}>
               Prev
             </button>
-
-            <span style={{ fontSize: 13 }}>
-              Halaman {page} / {totalPages}
-            </span>
-
-            <button
-              className="btn btn-outline"
-              disabled={page >= totalPages}
-              onClick={() => setPage(p => p + 1)}
-            >
+            <span style={{ fontSize: 13 }}>Halaman {page.akademik} / {totalPages.akademik}</span>
+            <button className="btn btn-outline" disabled={page.akademik >= totalPages.akademik}
+              onClick={() => setPage(p => ({ ...p, akademik: p.akademik + 1 }))}>
               Next
             </button>
           </div>
@@ -312,9 +258,9 @@ export default function AuditTrail() {
               <tbody>
                 {dokumen.loading ? (
                   <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Memuat data...</td></tr>
-                ) : dokumen.filtered.length === 0 ? (
+                ) : dokumen.rows.length === 0 ? (
                   <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Belum ada transaksi dokumen</td></tr>
-                ) : dokumen.filtered.map((r, i) => (
+                ) : dokumen.rows.map((r, i) => (
                   <tr key={i}>
                     <td style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(r.created_at)}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--navy)' }}>{r.student_id}</td>
@@ -343,6 +289,17 @@ export default function AuditTrail() {
               </tbody>
             </table>
           </div>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: 20 }}>
+            <button className="btn btn-outline" disabled={page.dokumen <= 1}
+              onClick={() => setPage(p => ({ ...p, dokumen: p.dokumen - 1 }))}>
+              Prev
+            </button>
+            <span style={{ fontSize: 13 }}>Halaman {page.dokumen} / {totalPages.dokumen}</span>
+            <button className="btn btn-outline" disabled={page.dokumen >= totalPages.dokumen}
+              onClick={() => setPage(p => ({ ...p, dokumen: p.dokumen + 1 }))}>
+              Next
+            </button>
+          </div>
         </div>
       )}
 
@@ -366,9 +323,9 @@ export default function AuditTrail() {
                 <tbody>
                   {users.loading ? (
                     <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Memuat data...</td></tr>
-                  ) : users.filtered.length === 0 ? (
+                  ) : users.rows.length === 0 ? (
                     <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Belum ada data pengguna</td></tr>
-                  ) : users.filtered.map((u, i) => (
+                  ) : users.rows.map((u, i) => (
                     <tr key={i}>
                       <td style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(u.created_at)}</td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--navy)' }}>{u.username}</td>
@@ -401,6 +358,17 @@ export default function AuditTrail() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: 20 }}>
+              <button className="btn btn-outline" disabled={page.users <= 1}
+                onClick={() => setPage(p => ({ ...p, users: p.users - 1 }))}>
+                Prev
+              </button>
+              <span style={{ fontSize: 13 }}>Halaman {page.users} / {totalPages.users}</span>
+              <button className="btn btn-outline" disabled={page.users >= totalPages.users}
+                onClick={() => setPage(p => ({ ...p, users: p.users + 1 }))}>
+                Next
+              </button>
             </div>
           </div>
         )
