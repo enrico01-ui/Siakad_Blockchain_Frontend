@@ -76,7 +76,7 @@ export default function InputData() {
                 </select>
               </div>
               <div>
-                <label className="field-label">Bobot IPK</label>
+                <label className="field-label">Bobot Nilai</label>
                 <input className="field-input" type="number" step="0.01" value={form.gpa_point} readOnly />
               </div>
               <div>
