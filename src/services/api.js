@@ -1,7 +1,7 @@
 // src/services/api.js
 import axios from 'axios'
 
-const api = axios.create({ baseURL: 'https://172.197.217.185:3000/api' })
+const api = axios.create({ baseURL: 'https://172-197-217-185.sslip.io/api' })
 
 // Otomatis tambah token di setiap request
 api.interceptors.request.use(cfg => {
